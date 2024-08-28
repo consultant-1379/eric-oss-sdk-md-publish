@@ -1,0 +1,32 @@
+#
+# COPYRIGHT Ericsson 2021
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+Kubesec:
+  KubesecYAML:
+    Scan: True
+    armLinks:
+      Links:
+      valuesOverride:
+    armLinksWithAuth:
+      Links:
+      armUser: ''  # Mandatory if links given
+      armEncryptedPwd: ''  # Mandatory if links given
+      valuesOverride: # If override is needed, add the values yaml names in the same order as arm links, if none, mark it ''
+          - ''
+  KubesecCluster:
+    Scan: False
+    KubeconfigFile: "admin.conf"
+    namespace: ''

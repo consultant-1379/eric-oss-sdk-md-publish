@@ -1,0 +1,117 @@
+#
+# COPYRIGHT Ericsson 2021
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ template "eric-oss-sdk-md-publish.name" . }}-test
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name | quote }}
+    app.kubernetes.io/version: {{ include "eric-oss-sdk-md-publish.version" . }}
+    helm.sh/chart: {{ template "eric-oss-sdk-md-publish.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  annotations:
+  {{- include "eric-oss-sdk-md-publish.product-info" . | indent 4 }}
+  {{- include "eric-oss-sdk-md-publish.config-annotations" . | indent 4 }}
+    "helm.sh/hook": test-success
+spec:
+  {{- if (index .Values "podPriority" "eric-oss-sdk-md-publish" "priorityClassName") }}
+  priorityClassName: {{ (index .Values "podPriority" "eric-oss-sdk-md-publish" "priorityClassName") }}
+  {{- end }}
+  {{- if include "eric-oss-sdk-md-publish.pullSecret" . }}
+  imagePullSecrets:
+    - name: {{ include "eric-oss-sdk-md-publish.pullSecret" . | quote}}
+  {{- end }}
+  securityContext:
+    fsGroup: {{ include "eric-oss-sdk-md-publish.fsGroup.coordinated" . }}
+  containers:
+  - name: eric-oss-sdk-md-publish-test
+    image: {{ template "eric-oss-sdk-md-publish.testImagePath" . }}
+    securityContext:
+      allowPrivilegeEscalation: false
+      privileged: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      capabilities:
+          drop:
+            - all
+    resources:
+      requests:
+      {{- if (index .Values "resources" "eric-oss-sdk-md-publishTest" "requests" "cpu") }}
+        cpu: {{ (index .Values "resources" "eric-oss-sdk-md-publishTest" "requests" "cpu" | quote) }}
+      {{- end }}
+      {{- if (index .Values "resources" "eric-oss-sdk-md-publishTest" "requests" "memory") }}
+        memory: {{ (index .Values "resources" "eric-oss-sdk-md-publishTest" "requests" "memory" | quote) }}
+      {{- end }}
+      {{- if (index .Values "resources" "eric-oss-sdk-md-publishTest" "requests" "ephemeral-storage") }}
+      {{ println "  ephemeral-storage:" (index .Values "resources" "eric-oss-sdk-md-publishTest" "requests" "ephemeral-storage" | quote) }}
+      {{- end }}
+      limits:
+      {{- if (index .Values "resources" "eric-oss-sdk-md-publishTest" "limits" "cpu") }}
+        cpu: {{ (index .Values "resources" "eric-oss-sdk-md-publishTest" "limits" "cpu" | quote) }}
+      {{- end }}
+      {{- if (index .Values "resources" "eric-oss-sdk-md-publishTest" "limits" "memory") }}
+        memory: {{ (index .Values "resources" "eric-oss-sdk-md-publishTest" "limits" "memory" | quote) }}
+      {{- end }}
+      {{- if (index .Values "resources" "eric-oss-sdk-md-publishTest" "limits" "ephemeral-storage") }}
+      {{ println "  ephemeral-storage:" (index .Values "resources" "eric-oss-sdk-md-publishTest" "limits" "ephemeral-storage" | quote) }}
+      {{- end }}
+    env:
+      - name: SERVICE_HOSTNAME
+        value: {{ template "eric-oss-sdk-md-publish.name" . }}
+      - name: SERVICE_PORT
+        value: "8080"
+    command: [ "/bin/sh", "-c", "status=$(curl --silent --output /dev/null -w '%{http_code}' --connect-timeout 20 http://$SERVICE_HOSTNAME:$SERVICE_PORT/v1/sample) && if [[ $status -eq 200 ]]; then exit 0; else exit 1; fi" ]
+  restartPolicy: Never
+  {{- if .Values.tolerations }}
+  tolerations:
+    {{- include "eric-oss-sdk-md-publish.tolerations" . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.topologySpreadConstraints.test }}
+  topologySpreadConstraints:
+    {{- toYaml . | nindent 6 }}
+  {{- end }}
+  {{- if .Values.terminationGracePeriodSeconds }}
+  terminationGracePeriodSeconds:
+    {{- include "eric-oss-sdk-md-publish.terminationGracePeriodSeconds" . | nindent 8 }}
+  {{- end }}
+  {{- if eq .Values.affinity.podAntiAffinity "hard" }}
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: app
+            operator: In
+            values:
+            - {{ include "eric-oss-sdk-md-publish.name" . }}
+        topologyKey: "kubernetes.io/hostname"
+  {{- else if eq .Values.affinity.podAntiAffinity  "soft" }}
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+            - key: app
+              operator: In
+              values:
+              - {{ include "eric-oss-sdk-md-publish.name" . }}
+          topologyKey: "kubernetes.io/hostname"
+  {{- end }}

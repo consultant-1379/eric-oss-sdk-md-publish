@@ -1,0 +1,50 @@
+#
+# COPYRIGHT Ericsson 2021
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+{{- if .Values.autoScaling.enabled }}
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "eric-oss-sdk-md-publish.fullname" . }}
+  labels:
+  {{- include "eric-oss-sdk-md-publish.labels" . | indent 4 }}
+  {{- if .Values.labels }}
+    {{ .Values.labels | toYaml | indent 4 }}
+  {{- end }}
+  annotations:
+{{- include "eric-oss-sdk-md-publish.product-info" . | indent 4 }}
+{{- include "eric-oss-sdk-md-publish.config-annotations" . | indent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "eric-oss-sdk-md-publish.fullname" . }}
+  minReplicas: {{ .Values.autoScaling.minReplicas }}
+  maxReplicas: {{ .Values.autoScaling.maxReplicas }}
+  metrics:
+  {{- if .Values.autoScaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        targetAverageUtilization: {{ .Values.autoScaling.targetCPUUtilizationPercentage }}
+  {{- end }}
+  {{- if .Values.autoScaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        targetAverageUtilization: {{ .Values.autoScaling.targetMemoryUtilizationPercentage }}
+  {{- end }}
+{{- end }}

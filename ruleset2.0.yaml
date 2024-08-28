@@ -1,0 +1,368 @@
+#
+# COPYRIGHT Ericsson 2021
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+modelVersion: 2.0
+
+description: "Ericsson Java Spring Boot Test Repo for IDUN-1590 Idun App SDK Markdown Publishing"
+
+# See image catalog: https://confluence.lmera.ericsson.se/display/ACD/ADP+CICD+Docker+Image+Catalog
+docker-images:
+  - adp-asciidoc-builder: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-asciidocbuilder:${env.ASCII_DOC_BUILDER_TAG}
+  - adp-doc-builder: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-docbuilder:${env.DOC_BUILDER_TAG}
+  - adp-helm-dr-check: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/common-library-adp-helm-dr-check:${env.HELM_DR_CHECK_TAG}
+  - adp-helm-kubectl: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-py3kubehelmbuilder:${env.HELM_KUBECTL_TAG}
+  - adp-image-dr-check: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/adp-image-dr-check:${env.IMAGE_DR_CHECK_TAG}
+  - adp-maven-builder: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-java11mvnbuilder:${env.MVN_BUILDER_TAG}
+  - adp-release-auto: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-adp-release-auto:${env.RELEASE_AUTO_TAG}
+  - elib-make-utilities: ${elib-make-subpath}-oss-drop/eric-elib/elib_makeutilities:${env.ELIB_MAKE_UTILITIES_TAG}
+  - bth-linter: armdocker.rnd.ericsson.se/proj-eric-oss-drop/eric-bth/eric-bth-spectral-linter:${env.BTH_LINTER_TAG}
+  - sdk-validator: armdocker.rnd.ericsson.se/proj-eric-oss-sdkschema-drop/eric-oss-sdkschema-validator:${env.SDKSCHEMA_VALIDATOR_TAG}
+  - grype-scan: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/va-image-scanning-grype:${env.ANCHORE_TAG}
+  - trivy-inline-scan: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/trivy-inline-scan:${env.TRIVY_TAG}
+  - va-scan-kubesec: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/va-scan-kubesec:${env.KUBESEC_TAG}
+  - va-scan-kubeaudit: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/va-scan-kubeaudit:${env.KUBEAUDIT_TAG}
+  - va-scan-kubehunter: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/va-scan-kubehunter:${env.KUBEHUNTER_TAG}
+  - hadolint-scan: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/hadolint-scan:${env.HADOLINT_TAG}
+  - py-builder: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-python3builder:latest
+
+import:
+  common: common-properties.yaml
+
+# List of constants
+properties:
+  - elib-make-subpath: armdocker.rnd.ericsson.se/proj-eric
+  - project-subpath: proj-eric-oss
+  - image-registry-path: armdocker.rnd.ericsson.se/proj-eric-oss
+  - image-secret: armdocker
+  - image-dev-repopath: ${image-registry-path}-dev
+  - image-ci-repopath: ${image-registry-path}-ci-internal
+  - image-drop-repopath: ${image-registry-path}-drop
+  - image-ci-full-name: ${image-ci-repopath}/${common.docker-image-name}
+  - image-full-name: ${image-drop-repopath}/${common.docker-image-name}
+
+  # Helm Chart name must follow the pattern: eric-[a-z0-9]{1,5}-[a-z0-9-]{1,30}
+  - helm-chart-repo-server-path: https://arm.seli.gic.ericsson.se/artifactory/proj-eric-oss
+  - helm-chart-dev-repopath: ${helm-chart-repo-server-path}-dev-helm
+  - helm-chart-ci-repopath: ${helm-chart-repo-server-path}-ci-internal-helm
+  - helm-chart-drop-repo: ${helm-chart-repo-server-path}-drop-helm
+
+  # Generic repository for publishing artifacts such as documentation
+  - generic-drop-repo: ${helm-chart-repo-server-path}-drop-generic
+
+  # Functional ID for your Team or CI group to push to Gerrit repo
+  - git-user: ossadmin
+  - git-repo-path: OSS/com.ericsson.oss.ci/eric-oss-sdk-md-publish
+  - git-repo-url: ssh://${git-user}@gerrit-gamma.gic.ericsson.se:29418/${git-repo-path}
+  - git-repo: https://gerrit-gamma.gic.ericsson.se/#/admin/projects/${git-repo-path}
+
+  - enabled-helm-design-rules: "-DhelmDesignRule.config.drHc011=enable -DhelmDesignRule.config.DR-D1120-045-AD=enable"
+
+  # FOSSA
+  - fossa-server-endpoint: https://scasfossa-staging.internal.ericsson.com
+  - fossa-ci-repopath: ${helm-chart-repo-server-path}-dev-generic-local/fossa
+  - fossa-service-name: eric-oss-sdk-md-publish
+  - fossa-scan-report-artifact-path: ${fossa-ci-repopath}/${fossa-service-name}
+  - fossa-scan-artifact-file-name: ${fossa-service-name}-${var.commithash}.tgz
+  - fossa-project-name: eric-oss-sdk-md-publish
+  - fossa-report-name: fossa-report.json
+  - dependency-file-name: dependencies.yaml
+  - fossa-team-name: eric-oss-hummingbirds
+  - fossa-config-location: ${env.PWD}/.fossa.yml
+  - docker-params: "--workdir ${env.PWD}"
+
+  # VA IMAGES
+  - image-to-scan: ${image-ci-full-name}:${var.version}
+  - anchore-grype-image: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/va-image-scanning-grype:latest
+  - trivy-image: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/trivy-inline-scan:latest
+
+  - python-scripts-dir: /python-ci-scripts
+  - combined_metrics: /combined_metrics
+  - python-ci-image-name: python-ci-scripts-executor
+  - sonar-gerrit-image-name: sonar_gerrit
+  - dora-image-name: dora_metrics
+  - jira-image-name: jira_metrics
+  - drcheck-image-name: drcheck_metrics
+  - jenkins-image-name: jenkins_metrics
+  - gerrit-image-name: gerrit_metrics
+  - helm-version-image-name: repo_version
+  - rpt-rentsion-image-name: rpt-retention
+  - gerrit_patchset_upload-image-name: gerrit_patchset_upload
+  - BFA_ELK_Files: /BFA/BFA_ELK_Files
+  - BFA_VA: /BFA/BFA_VA
+  - python-bfa-elk-image-name: python-bfa-elk-data
+  - python-va-image-name: python-va-data
+  - va_metrics: /VA_Stage
+  - va-image-name: va_stage_fetch
+  - rpt-docker-image: rpt-docker-image
+  - retentionpolicy-docker-image: retentionpolicy-docker-image
+# import environment variables (For example: Jenkins parameters)
+env:
+  - INT_CHART_VERSION
+  - GERRIT_MIRROR
+  - INT_CHART_NAME
+  - INT_CHART_REPO
+  - FUNCTIONAL_USER_USERNAME
+  - FUNCTIONAL_USER_PASSWORD
+  - DOCKER_NETWORK (default=--network host)
+  - HOME
+  - MAVEN_CLI_OPTS (default=-Duser.home=${env.HOME} -B)
+  - MAVEN_OPTS (default=-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn)
+  - PWD
+  - RELEASE (default=false)
+  - DOCKER_VOLUME_MAPPING_PASSWD (default=--volume ${env.HOME}/mypasswd:/etc/passwd:ro)
+  - PROJ_MVN (default=/proj/mvn)
+  - STATE_VALUES_FILE
+  - PATH_TO_HELMFILE
+  - GET_ALL_IMAGES(default=true)
+  - FETCH_CHARTS (default='false')
+
+  # Kubernetes
+  - COLLECT_LOGS_SCRIPT_LOCATION (default="https://arm.sero.gic.ericsson.se/artifactory/proj-ADP_GS_Support_FTP-generic-local/collect_ADP_logs")
+  - COLLECT_LOGS_SCRIPT_FILE_NAME (default="collect_ADP_logs.sh")
+  - COLLECT_LOGS_SINCE_RELATIVE_TIME (default="2h")
+  - COLLECT_LOGS_DIR (default=./k8s-logs)
+  - ENABLE_HELM_V3 (default=true)
+  - HELM_INSTALL_TIMEOUT (default=5m0s)
+  - HELM_RELEASE (default=${common.helm-chart-name}-release)
+  - HELM_TEST_TIMEOUT (default=5m0s)
+  - HELM_VERSION (default="3.5.2")
+  - K8S_NAMESPACE (default=${common.helm-chart-name}-${var.commithash})
+  - KUBECONFIG (default=${env.HOME}/.kube/config)
+  - BUILD_DIR (default=./build)
+  - KAAS_INFO_FILE (default=${env.BUILD_DIR}/kaas-info.log)
+
+  # Credentials
+  - DOCKER_CONFIG (default=$HOME/.docker/config.json)
+  - ERIDOC_USERNAME
+  - ERIDOC_PASSWORD
+  - GERRIT_USERNAME
+  - GERRIT_PASSWORD
+  - GERRIT_CHANGE_NUMBER
+  - JIRA_USERNAME
+  - JIRA_PASSWORD
+  - SELI_ARTIFACTORY_REPO_USER
+  - SELI_ARTIFACTORY_REPO_PASS
+  - SERO_ARTIFACTORY_REPO_USER
+  - SERO_ARTIFACTORY_REPO_PASS
+
+  # Default docker image tags
+  - ASCII_DOC_BUILDER_TAG (default=latest)
+  - DOC_BUILDER_TAG (default=2.3.0-latest)
+  - ELIB_MAKE_UTILITIES_TAG (default=latest)
+  - HELM_DR_CHECK_TAG (default=latest)
+  - HELM_KUBECTL_TAG (default=latest)
+  - IMAGE_DR_CHECK_TAG (default=latest)
+  - MVN_BUILDER_TAG (default=latest)
+  - RELEASE_AUTO_TAG (default=latest)
+  - BTH_LINTER_TAG (default=latest)
+  - SDKSCHEMA_VALIDATOR_TAG (default=latest)
+
+  # VA Tools docker image tags
+  - ANCHORE_TAG (default=latest)
+  - TRIVY_TAG (default=latest)
+  - KUBESEC_TAG (default=latest)
+  - KUBEAUDIT_TAG (default=latest)
+  - KUBEHUNTER_TAG (default=latest)
+  - HADOLINT_TAG (default=latest)
+
+  # SonarQube
+  - SONAR_AUTH_TOKEN
+  - SONAR_HOST_URL
+  - SONAR_BRANCH (default="master")
+
+  # REST2HTML - Document Number of the REST Container file (The decimal class for a container is 190 89-)
+  - REST2HTML_NUM (default="190 89-CAAH 101 091/1")
+
+  # BTH Linter
+  - OPEN_API_SPEC_DIRECTORY (default=src/main/resources/v1)
+
+  # FOSSA
+  - FOSSA_ARTIFACT_HASH
+  - FOSSA_API_KEY
+
+  # X-RAY
+  - XRAY_USER
+  - XRAY_APIKEY
+
+  # VHUB
+  - VHUB_API_TOKEN
+
+# Variables, set by below tasks
+var:
+  - commithash
+  - commithash-full
+  - commit-author
+  - commit-email
+  - docker-config-basepath
+  - image-registry
+  - helm-chart-repo-internal
+  - image-full-name-internal
+  - image-repopath-internal
+  - image-repopath-drop
+  - pom-version
+  - rest2html-optional
+  - revision
+  - rstate
+  - version
+  - version-prefix
+  - image-dr-vm-args
+  - kaas-version
+  - kaas-current-context
+  - resultcode_hadolint_check
+  - save-namespace
+  - INT_CHART_VERSION
+  - docker-image-id
+
+# Rules to execute
+rules:
+
+  # Integrated rule to execute everything locally (init-dev)
+  release:
+    - rule: clean
+    - rule: init-dev
+    - rule: lint
+    - rule: build
+    - rule: test
+    - rule: image
+    - rule: image-dr-check
+    - rule: package
+    - rule: package-jars
+    - rule: k8s-test
+
+  # Clean workspace
+  clean:
+    - task: rm
+      cmd:
+        - rm -rf .bob/
+        - rm -rf build/
+        - rm -rf MD-OAS-files/
+        - rm -f artifact.properties
+        - rm -rf scripts/service_names.txt
+
+
+  rpt-retention:
+    - task: Build docker image for RPT
+      cmd: docker build ${env.PWD}/${combined_metrics} --target rpt-retention --tag ${rpt-rentsion-image-name}:latest
+    - task: docker-run
+      cmd: docker run ${rpt-rentsion-image-name}:latest
+
+
+  helm_version_image:
+    - task: docker-build
+      cmd: docker build
+        ${env.PWD}/${combined_metrics} --target helm_version_data
+        --tag ${helm-version-image-name}:latest
+    - task: docker-run 
+      cmd: docker run --env FUNCTIONAL_USER_USERNAME=${env.FUNCTIONAL_USER_USERNAME} --env FUNCTIONAL_USER_PASSWORD=${env.FUNCTIONAL_USER_PASSWORD} ${helm-version-image-name}:latest
+
+  gerrit_patchset_upload:
+    - task: docker build
+      cmd: docker build
+          ${env.PWD}/${combined_metrics} --target gerrit_patchset_upload
+          --tag ${gerrit_patchset_upload-image-name}:latest
+    - task: docker-run
+      cmd: docker run --env FUNCTIONAL_USER_USERNAME=${env.FUNCTIONAL_USER_USERNAME} --env FUNCTIONAL_USER_PASSWORD=${env.FUNCTIONAL_USER_PASSWORD} ${gerrit_patchset_upload-image-name}:latest
+
+  sonar_docker_image:
+    - task: docker-build
+      cmd: docker build
+        ${env.PWD}/${combined_metrics} --target sonar_gerrit
+        --tag ${sonar-gerrit-image-name}:latest
+    - task: docker-run 
+      cmd: docker run --env FUNCTIONAL_USER_USERNAME=${env.FUNCTIONAL_USER_USERNAME} --env FUNCTIONAL_USER_PASSWORD=${env.FUNCTIONAL_USER_PASSWORD} ${sonar-gerrit-image-name}:latest
+
+
+  dora_docker_image:
+    - task: docker-build
+      cmd: docker build
+        ${env.PWD}/${combined_metrics} --target dora_metrics
+        --tag ${dora-image-name}:latest
+    - task: docker-run 
+      cmd: docker run --env FUNCTIONAL_USER_USERNAME=${env.FUNCTIONAL_USER_USERNAME} --env FUNCTIONAL_USER_PASSWORD=${env.FUNCTIONAL_USER_PASSWORD} ${dora-image-name}:latest
+
+  jira_docker_image:
+    - task: docker-build
+      cmd: docker build
+        ${env.PWD}/${combined_metrics} --target jira
+        --tag ${jira-image-name}:latest
+    - task: docker-run 
+      cmd: docker run --env FUNCTIONAL_USER_USERNAME=${env.FUNCTIONAL_USER_USERNAME} --env FUNCTIONAL_USER_PASSWORD=${env.FUNCTIONAL_USER_PASSWORD} ${jira-image-name}:latest
+
+
+  drcheck_docker_image:
+    - task: docker-build
+      cmd: docker build
+        ${env.PWD}/${combined_metrics} --target drcheck
+        --tag ${drcheck-image-name}:latest
+    - task: docker-run 
+      cmd: docker run --env FUNCTIONAL_USER_USERNAME=${env.FUNCTIONAL_USER_USERNAME} --env FUNCTIONAL_USER_PASSWORD=${env.FUNCTIONAL_USER_PASSWORD} ${drcheck-image-name}:latest
+
+  jenkins_docker_image:
+    - task: docker-build
+      cmd: docker build
+        ${env.PWD}/${combined_metrics} --target jenkinsmetrics
+        --tag ${jenkins-image-name}:latest
+    - task: docker-run 
+      cmd: docker run --env FUNCTIONAL_USER_USERNAME=${env.FUNCTIONAL_USER_USERNAME} --env FUNCTIONAL_USER_PASSWORD=${env.FUNCTIONAL_USER_PASSWORD} ${jenkins-image-name}:latest
+
+  gerrit_docker_image:
+    - task: docker-build
+      cmd: docker build
+        ${env.PWD}/${combined_metrics} --target gerritmetrics
+        --tag ${gerrit-image-name}:latest
+    - task: docker-run 
+      cmd: docker run --env FUNCTIONAL_USER_USERNAME=${env.FUNCTIONAL_USER_USERNAME} --env FUNCTIONAL_USER_PASSWORD=${env.FUNCTIONAL_USER_PASSWORD} ${gerrit-image-name}:latest
+      
+  bfa_elk_docker_image:
+    - task: docker-build
+      cmd: docker build
+        ${env.PWD}/${BFA_ELK_Files}
+        --tag ${python-bfa-elk-image-name}:latest 
+    - task: docker-run 
+      cmd: docker run --env FUNCTIONAL_USER_USERNAME=${env.FUNCTIONAL_USER_USERNAME} --env FUNCTIONAL_USER_PASSWORD=${env.FUNCTIONAL_USER_PASSWORD} ${python-bfa-elk-image-name}:latest
+      
+      
+  va_docker_image:
+    - task: docker-build
+      cmd: docker build
+        ${env.PWD}/${BFA_VA}
+        --tag ${python-va-image-name}:latest 
+    - task: docker-run 
+      cmd: docker run --env FUNCTIONAL_USER_USERNAME=${env.FUNCTIONAL_USER_USERNAME} --env FUNCTIONAL_USER_PASSWORD=${env.FUNCTIONAL_USER_PASSWORD} ${python-va-image-name}:latest
+      
+  va_stage_docker_image:
+    - task: docker-build
+      cmd: docker build
+        ${env.PWD}/${va_metrics} --target vastage
+        --tag ${va-image-name}:latest
+    - task: docker-run 
+      cmd: docker run --env FUNCTIONAL_USER_USERNAME=${env.FUNCTIONAL_USER_USERNAME} --env FUNCTIONAL_USER_PASSWORD=${env.FUNCTIONAL_USER_PASSWORD} ${va-image-name}:latest
+
+  RPT_docker_image:
+    - task: docker-build
+      cmd: docker build
+        ${env.PWD}/RPT --target rpt
+        --tag ${rpt-docker-image}:latest
+    - task: docker-run 
+      cmd: docker run --env FUNCTIONAL_USER_USERNAME=${env.FUNCTIONAL_USER_USERNAME} --env FUNCTIONAL_USER_PASSWORD=${env.FUNCTIONAL_USER_PASSWORD} ${rpt-docker-image}:latest
+
+  RPT_RetentionPolicy:
+    - task: docker-build
+      cmd: docker build
+        ${env.PWD}/RPT --target retention_policy
+        --tag ${retentionpolicy-docker-image}:latest
+    - task: docker-run 
+      cmd: docker run --env FUNCTIONAL_USER_USERNAME=${env.FUNCTIONAL_USER_USERNAME} --env FUNCTIONAL_USER_PASSWORD=${env.FUNCTIONAL_USER_PASSWORD} ${retentionpolicy-docker-image}:latest

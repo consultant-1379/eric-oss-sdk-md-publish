@@ -1,0 +1,2 @@
+from msdevops_metrics.gerrit_patchset_publish.patchset_upload import GerritPatchset
+GerritPatchset.main(GerritPatchset)

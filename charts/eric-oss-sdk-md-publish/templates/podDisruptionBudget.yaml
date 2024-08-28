@@ -1,0 +1,38 @@
+#
+# COPYRIGHT Ericsson 2021
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ template "eric-oss-sdk-md-publish.name" . }}
+  labels:
+    app.kubernetes.io/name: {{ template "eric-oss-sdk-md-publish.name" . }}
+    helm.sh/chart: {{ template "eric-oss-sdk-md-publish.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    app.kubernetes.io/version: {{ template "eric-oss-sdk-md-publish.version" . }}
+    {{- include "eric-oss-sdk-md-publish.labels" . | indent 4 }}
+    {{- if .Values.labels }}
+      {{ .Values.labels | toYaml | indent 4 }}
+    {{- end }}
+  annotations:
+  {{- include "eric-oss-sdk-md-publish.product-info" . | indent 4 }}
+  {{- include "eric-oss-sdk-md-publish.config-annotations" . | indent 4 }}
+spec:
+  minAvailable: {{ template "eric-oss-sdk-md-publish.pod-disruption-budget" . }}
+  selector:
+    matchLabels:
+      app: {{ template "eric-oss-sdk-md-publish.name" . }}

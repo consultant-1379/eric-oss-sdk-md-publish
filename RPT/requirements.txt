@@ -1,0 +1,5 @@
+requests==2.24.0
+json3==1.0
+elasticsearch==6.8.2
+pygerrit2
+PyYAML==6.0
